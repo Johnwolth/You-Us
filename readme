@@ -1,0 +1,60 @@
+import UIKit
+import Firebase
+
+class ViewController: UIViewController {
+
+    @IBOutlet weak var ratingLabel: UILabel!
+    @IBOutlet weak var slider: UISlider!
+
+    var currentUserRating: Int = 0
+    var ref: DatabaseReference!
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // Initialize Firebase
+        FirebaseApp.configure()
+        ref = Database.database().reference()
+        slider.minimumValue = 1
+        slider.maximumValue = 10
+        slider.value = 5
+        ratingLabel.text = "5"
+    }
+
+    @IBAction func sliderValueChanged(_ sender: UISlider) {
+        let rating = Int(sender.value)
+        ratingLabel.text = "\(rating)"
+        currentUserRating = rating
+    }
+
+    @IBAction func saveRating(_ sender: Any) {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            return
+        }
+        ref.child("users/\(userId)/rating").setValue(currentUserRating)
+        findMatches()
+    }
+
+    func findMatches() {
+        ref.child("users").observeSingleEvent(of: .value, with: { snapshot in
+            guard let allUsers = snapshot.value as? [String: Any] else {
+                return
+            }
+            var matches: [String] = []
+            for (userId, userData) in allUsers {
+                guard let userRating = userData["rating"] as? Int else {
+                    continue
+                }
+                if userRating >= self.currentUserRating && userId != Auth.auth().currentUser?.uid {
+                    matches.append(userId)
+                }
+            }
+            self.connectUsers(matches)
+        })
+    }
+
+    func connectUsers(_ userIds: [String]) {
+        let alert = UIAlertController(title: "Matches", message: "Users with the same or higher rating: \(userIds.joined(separator: ", "))", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        self.present(alert, animated: true, completion: nil)
+    }
+}
